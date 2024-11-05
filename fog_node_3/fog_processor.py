@@ -13,7 +13,13 @@ app = Flask(__name__)
 
 tasks = []  # List to store task information
 
-1
+FOG_NODE_URLS = [
+    # "http://10.96.137.169:5001/process",  # Fog node 1
+    "http://10.109.110.20:5011/process",   # Fog node 2
+    # "http://10.104.122.124:5021/process"    # Fog node 3
+]
+
+
 @app.route('/get_status', methods=['GET'])
 def get_status():
     """
@@ -44,12 +50,44 @@ def get_status():
     return jsonify(status_data)
 
 
+
+@app.route('/head', methods=['POST'])
+def head():
+    """
+    Receives tasks from the edge node and distributes them to available fog nodes.
+    """
+    data = request.get_json()
+    # Assume data is a list of tasks
+    tasks_to_process = data.get("tasks", [])
+
+    if not tasks_to_process:
+        return jsonify({"error": "No tasks received"}), 400
+
+    for task in tasks_to_process:
+        task_id = task.get("task_id", str(uuid.uuid4()))  # Use provided task_id or generate a new one
+        img_data = task.get("image")  # Assuming the image data is sent in base64 or binary format
+        
+        # Distributing the task to fog nodes
+        for fog_node_url in FOG_NODE_URLS:
+            try:
+                response = requests.post(fog_node_url, json={"task_id": task_id, "image": img_data})
+                if response.status_code == 200:
+                    print(f"Task {task_id} distributed successfully to {fog_node_url}")
+                else:
+                    print(f"Failed to distribute task {task_id} to {fog_node_url}: {response.text}")
+            except Exception as e:
+                print(f"Error distributing task {task_id} to {fog_node_url}: {str(e)}")
+
+    return jsonify({"message": "Tasks received and distributed."})
+
+
 @app.route('/process', methods=['POST'])
 def process_frame():
     print("Received a frame for processing.")
-    task_id = str(uuid.uuid4())  # Generate a unique task ID
+    # Get task ID from query parameters
+    task_id = request.args.get("task_id", str(uuid.uuid4()))  # Use request.args to get query parameter
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
+
     # Initialize task details
     task_info = {
         "task_id": task_id,
@@ -62,8 +100,11 @@ def process_frame():
     # Append the task info to tasks list
     tasks.append(task_info)
 
-    img_data = np.frombuffer(request.data, np.uint8)
-    frame = cv2.imdecode(img_data, cv2.IMREAD_COLOR)
+    # Read the image data from the request body
+    img_data = request.data  # Use request.data to get the raw byte data
+    img_data_np = np.frombuffer(img_data, np.uint8)
+    frame = cv2.imdecode(img_data_np, cv2.IMREAD_COLOR)
+    
     if frame is None:
         print("Failed to decode frame.")
         return jsonify({"error": "Failed to decode frame."}), 400
@@ -111,7 +152,9 @@ def process_frame():
         }
     })
 
-    return jsonify({"coordinates": coordinates, "detection_status": detection_status})
+    return jsonify({"coordinates": coordinates, "detection_status": task_info["detection_status"]})
+
+
 
 @app.route('/tasks', methods=['GET'])
 def get_tasks():
@@ -122,4 +165,4 @@ def data():
     return render_template('fog_node_data.html', coordinates=[])
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5001)
+    app.run(host="0.0.0.0", port=5021)

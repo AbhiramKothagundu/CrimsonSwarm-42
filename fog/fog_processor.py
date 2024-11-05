@@ -14,11 +14,11 @@ app = Flask(__name__)
 tasks = []  # List to store task information
 isHead = False
 
-FOG_NODE_URLS = [
-    # "http://10.96.137.169:5001/process",  # Fog node 1
-    "http://10.109.110.20:5011/process",   # Fog node 2
-    # "http://10.104.122.124:5021/process"    # Fog node 3
-]
+# FOG_NODE_URLS = [
+#     # "http://10.96.137.169:5001/process",  # Fog node 1
+#     "http://10.109.110.20:5011/process",   # Fog node 2
+#     "http://10.104.122.124:5021/process"    # Fog node 3
+# ]
 
 
 @app.route('/get_status', methods=['GET'])
