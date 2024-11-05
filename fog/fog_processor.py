@@ -12,6 +12,7 @@ EDGE_NODE_URL = "http://10.96.137.169:5000/receive"  # Update to your Edge node 
 app = Flask(__name__)
 
 tasks = []  # List to store task information
+isHead = False
 
 FOG_NODE_URLS = [
     # "http://10.96.137.169:5001/process",  # Fog node 1
@@ -49,35 +50,46 @@ def get_status():
     
     return jsonify(status_data)
 
+# List to store task info (task_id and the target fog node)
+sent_tasks = []
+
+
 @app.route('/head', methods=['POST'])
 def head():
     """
-    Receives tasks from the edge node and sends them directly to Fog Node 2 without modification.
+    Receives tasks from the edge node and sends them directly to a specified Fog Node.
     """
+    isHead = True
     task_id = request.args.get("task_id", str(uuid.uuid4()))  # Get task_id from query parameter (if any)
     img_data = request.data  # Get the raw image byte data (as received)
 
     if not img_data:
         return jsonify({"error": "No image data received"}), 400
 
-    # Directly send the received task data to Fog Node 2
-    fog_node_url = "http://10.109.110.20:5011/process"  # Fog Node 2 URL
+    # Specify the fog node URL (you can modify this based on your logic)
+    fog_node_url = "http://10.109.110.20:5011/process"  # Example Fog Node URL (change if needed)
     
     try:
-        # Forward the received image data and task ID directly to Fog Node 2
+        # Forward the received image data and task ID to the specified fog node
         response = requests.post(fog_node_url, data=img_data, headers={'Content-Type': 'application/octet-stream'}, params={'task_id': task_id})
         
         if response.status_code == 200:
             print(f"Task {task_id} sent successfully to {fog_node_url}")
-            return jsonify({"message": "Task received and forwarded to Fog Node 2."})
+            
+            # Store the task and the fog node it was sent to
+            sent_tasks.append({
+                "task_id": task_id,
+                "fog_node": fog_node_url
+            })
+            
+            return jsonify({"message": "Task received and forwarded to Fog Node."})
         else:
             print(f"Failed to forward task {task_id} to {fog_node_url}: {response.text}")
-            return jsonify({"error": f"Failed to forward task to Fog Node 2: {response.text}"}), 500
+            return jsonify({"error": f"Failed to forward task to Fog Node: {response.text}"}), 500
     
     except Exception as e:
         print(f"Error forwarding task {task_id} to {fog_node_url}: {str(e)}")
-        return jsonify({"error": f"Error forwarding task to Fog Node 2: {str(e)}"}), 500
-
+        return jsonify({"error": f"Error forwarding task to Fog Node: {str(e)}"}), 500
 
 
 @app.route('/process', methods=['POST'])
@@ -160,7 +172,7 @@ def process_frame():
         }
     })
 
-    return jsonify({"coordinates": coordinates, "detection_status": detection_status})
+    return jsonify({"coordinates": coordinates, "detection_status": task_info["detection_status"]})
 
 @app.route('/tasks', methods=['GET'])
 def get_tasks():
@@ -168,7 +180,7 @@ def get_tasks():
 
 @app.route('/data')
 def data():
-    return render_template('fog_node_data.html', coordinates=[])
+    return render_template('head_org.html', sent_tasks=sent_tasks)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001)

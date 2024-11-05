@@ -152,7 +152,8 @@ def process_frame():
         }
     })
 
-    return jsonify({"coordinates": coordinates, "detection_status": detection_status})
+    return jsonify({"coordinates": coordinates, "detection_status": task_info["detection_status"]})
+
 
 
 @app.route('/tasks', methods=['GET'])

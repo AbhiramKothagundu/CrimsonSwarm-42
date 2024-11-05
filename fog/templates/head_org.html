@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Head Node Tasks</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .container {
+            margin-top: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        .task-info {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            background-color: #f9f9f9;
+        }
+        .task-info table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .task-info table, .task-info th, .task-info td {
+            border: 1px solid #ddd;
+        }
+        .task-info th, .task-info td {
+            padding: 8px;
+            text-align: left;
+        }
+        a {
+            text-decoration: none;
+            color: white;
+            background-color: #007bff;
+            padding: 10px 15px;
+            border-radius: 5px;
+        }
+        a:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Tasks Sent from Head Node</h1>
+
+        <div class="task-info">
+            <h3>List of Tasks Sent to Fog Nodes:</h3>
+            <table>
+                <tr>
+                    <th>Task ID</th>
+                    <th>Fog Node</th>
+                </tr>
+                {% for task in sent_tasks %}
+                <tr>
+                    <td>{{ task.task_id }}</td>
+                    <td>{{ task.fog_node }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+    </div>
+</body>
+</html>
