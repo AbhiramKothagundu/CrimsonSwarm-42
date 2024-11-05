@@ -14,63 +14,139 @@ app = Flask(__name__)
 tasks = []  # List to store task information
 isHead = False
 
-# FOG_NODE_URLS = [
-#     # "http://10.96.137.169:5001/process",  # Fog node 1
-#     "http://10.109.110.20:5011/process",   # Fog node 2
-#     "http://10.104.122.124:5021/process"    # Fog node 3
-# ]
+FOG_NODE_URLS = [
+    # "http://10.96.137.169:5001/process",  # Fog node 1
+    "http://10.109.110.20:5011/process",   # Fog node 2
+    "http://10.104.122.124:5021/process"    # Fog node 3
+]
 
 
-@app.route('/get_status', methods=['GET'])
-def get_status():
-    """
-    Returns the current status of this fog node.
-    """
-    # Gather service rate and latency (for demonstration; adjust as needed)
-    service_rate = 10  # Service rate could be a dynamic calculation
-    latency = 10  # Replace with actual latency measurements if available
+# Get status from fog nodes
+def get_fog_status():
+    status_data = []
+    for url in FOG_NODE_URLS:
+        try:
+            response = requests.get(f"{url}/get_status")
+            if response.status_code == 200:
+                status_data.append(response.json())
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching status from {url}: {e}")
+    return status_data
 
-    # Gather additional metrics
-    cpu_usage = psutil.cpu_percent(interval=1)  # Current CPU usage in percentage
-    memory_info = psutil.virtual_memory()  # Memory details
-    memory_usage = memory_info.percent  # Memory usage in percentage
-    network_stats = psutil.net_io_counters()  # Network details
-    
-    # Data dictionary for status information
-    status_data = {
-        'service_rate': service_rate,
-        'latency': latency,
-        'cpu_usage': cpu_usage,
-        'memory_usage': memory_usage,
-        'sent_bytes': network_stats.bytes_sent,
-        'recv_bytes': network_stats.bytes_recv,
-        'available_memory': memory_info.available,
-        'total_memory': memory_info.total
-    }
-    
-    return jsonify(status_data)
+# ACO parameters
+BWc = 12 * 1e6  # 12 MB/s in bytes per second
+BW1 = 300 * 1e6  # 300 MB/s in bytes per second
+Mants = 3  # Number of ants
+Niter = 10  # Number of iterations
+ρ = 0.1  # Pheromone evaporation rate
+ρg = 0.2  # Global evaporation rate
+α = 0.2  # Heuristic parameter for pheromone effect
+β = 2  # Heuristic parameter for task offloading quality
+
+# Task offloading using ACO
+def aco_task_offloading(Ms, Nnodes, λi, μij, Dsizei, Lij):
+    # Initialize pheromone matrix
+    pheromone_matrix = np.ones((Ms, Nnodes))
+    best_solution = None
+    best_cost = float('inf')
+
+    Rj = np.zeros(Nnodes)
+    Raverage = 0
+
+    for _ in range(Niter):
+        tabu_tables = [set() for _ in range(Mants)]  # Taboo tables for each ant
+        solutions = []
+
+        for ant in range(Mants):
+            current_solution = []
+            for sensor in range(Ms):
+                probabilities = np.zeros(Nnodes)
+                for j in range(Nnodes):
+                    loadj = 1 - (Rj[j] - Raverage) / Rj[j] if Rj[j] != 0 else 1
+                    ηij = loadj / Rj[j] if Rj[j] != 0 else 1
+                    probabilities[j] = (pheromone_matrix[sensor, j] * α) * (ηij * β)
+
+                # Normalize probabilities
+                sum_probabilities = np.sum(probabilities)
+                if sum_probabilities > 0:
+                    probabilities /= sum_probabilities
+                else:
+                    probabilities.fill(1 / Nnodes)
+
+                # Roulette wheel selection
+                selected_node = np.random.choice(Nnodes, p=probabilities)
+                current_solution.append(selected_node)
+                tabu_tables[ant].add(selected_node)
+
+            solutions.append(current_solution)
+
+        # Update pheromone matrix
+        pheromone_updates = np.zeros_like(pheromone_matrix)
+        for ant in range(Mants):
+            for sensor in range(Ms):
+                selected_node = solutions[ant][sensor]
+                if Rj[selected_node] != 0:
+                    pheromone_updates[sensor, selected_node] += 1 / Rj[selected_node]
+
+        pheromone_matrix = (1 - ρ) * pheromone_matrix + ρ * pheromone_updates
+
+        # Global pheromone update
+        for j in range(Nnodes):
+            if Rj[j] != 0:
+                pheromone_matrix[:, j] = (1 - ρg) * pheromone_matrix[:, j] + ρg * (1 / Rj[j])
+
+        # Calculate response times
+        for j in range(Nnodes):
+            CommCostij = Lij[:, j] + Dsizei / BW1
+            Rj[j] = np.sum(CommCostij) + np.sum(1 / (μij[j] - λi))
+
+        Raverage = np.mean(Rj)
+
+        # Compare with the best solution
+        if Raverage < best_cost:
+            best_cost = Raverage
+            best_solution = pheromone_matrix.copy()
+
+    return best_solution, best_cost
 
 # List to store task info (task_id and the target fog node)
 sent_tasks = []
 
-
 @app.route('/head', methods=['POST'])
 def head():
     """
-    Receives tasks from the edge node and sends them directly to a specified Fog Node.
+    Receives tasks from the edge node and sends them to the best fog node based on ACO optimization.
     """
-    isHead = True
     task_id = request.args.get("task_id", str(uuid.uuid4()))  # Get task_id from query parameter (if any)
     img_data = request.data  # Get the raw image byte data (as received)
 
     if not img_data:
         return jsonify({"error": "No image data received"}), 400
 
-    # Specify the fog node URL (you can modify this based on your logic)
-    fog_node_url = "http://10.109.110.20:5011/process"  # Example Fog Node URL (change if needed)
+    # Fetch the fog status
+    fog_status = get_fog_status()
     
+    if not fog_status:
+        return jsonify({"error": "No valid fog node status received"}), 500
+
+    # Prepare data for ACO
+    Ms = len(fog_status)  # Number of sensors (same as the number of fog nodes)
+    Nnodes = len(fog_status)
+    
+    λi = np.random.uniform(1, 3, Ms)  # Data rate produced by sensors
+    μij = np.random.uniform(50, 300, Nnodes)  # Service rate of fog nodes
+    Dsizei = np.random.uniform(250 * 1e3, 1 * 1e6, Ms)  # Data size generated from sensor in bytes
+    Lij = np.random.uniform(2, 20, (Ms, Nnodes)) * 1e-3  # Network latency in seconds
+
+    # Perform ACO to find the best fog node for task offloading
+    best_solution, best_cost = aco_task_offloading(Ms, Nnodes, λi, μij, Dsizei, Lij)
+
+    # Find the best fog node (with the lowest cost)
+    best_node_idx = np.argmin(best_solution.sum(axis=0))  # Select the node with the lowest pheromone cost
+    fog_node_url = FOG_NODE_URLS[best_node_idx]
+
+    # Forward the received image data and task ID to the selected fog node
     try:
-        # Forward the received image data and task ID to the specified fog node
         response = requests.post(fog_node_url, data=img_data, headers={'Content-Type': 'application/octet-stream'}, params={'task_id': task_id})
         
         if response.status_code == 200:
@@ -90,6 +166,34 @@ def head():
     except Exception as e:
         print(f"Error forwarding task {task_id} to {fog_node_url}: {str(e)}")
         return jsonify({"error": f"Error forwarding task to Fog Node: {str(e)}"}), 500
+
+
+@app.route('/get_status', methods=['GET'])
+def get_status():
+    """
+    Returns the hardcoded status for Fog Node 1.
+    """
+    # Hardcoded status data for Fog Node 1
+    status_data = {
+        'Fog Device': 'F1',
+        'Fx': '',  # Leave empty or add value if needed
+        'Fy': '',  # Leave empty or add value if needed
+        'SS (m/s)': 299792458,
+        'B/W': 100,
+        'SNR (dB)': 20,
+        'Init Energy (J)': 335700,
+        'Idle (W/H)': 1.25,
+        'Idle (J)': 4500,
+        'Cons (W/H)': 10,
+        'Cons (J)': 36000,
+        'C max': 1.43,
+        'C min': 1.43,
+        'C avg': 1.43,
+        'RAM': 4,
+        'MIPS': 9000
+    }
+
+    return jsonify(status_data)
 
 
 @app.route('/process', methods=['POST'])
@@ -180,7 +284,9 @@ def get_tasks():
 
 @app.route('/data')
 def data():
-    return render_template('head_org.html', sent_tasks=sent_tasks)
+    if isHead == True:
+        return render_template('head_org.html', sent_tasks=sent_tasks)
+    return render_template('fog_node_data.html', coordinates=[])
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001)
