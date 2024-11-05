@@ -1,0 +1,743 @@
+sudo cat /var/lib/rancher/k3s/server/node-token
+K10fe2c27866cb03cc960afb220fbad0f24bb3a030270a3bf87431f1d29770ea325::server:1d9d4c98a415c179789597ed12136778
+
+
+docker build -t dabblu/edge_image ./edge
+docker push dabblu/edge_image
+
+docker build -t dabblu/fog_image ./fog
+docker push dabblu/fog_image
+
+docker build -t dabblu/cloud_image ./cloud
+docker push dabblu/cloud_image
+
+docker build -t dabblu/fog_image_2 ./fog_node_2
+docker push dabblu/fog_image_2
+
+docker build -t dabblu/fog_image_3 ./fog_node_3
+docker push dabblu/fog_image_3
+
+kubectl get nodes -o wide
+
+kubectl apply -f edge/edge_deployment.yaml
+kubectl apply -f fog/fog_deployment.yaml
+kubectl apply -f cloud/cloud_deployment.yaml
+kubectl apply -f fog_node_2/fog_deployment.yaml
+kubectl apply -f fog_node_3/fog_deployment.yaml
+
+
+
+kubectl apply -f edge/edge_service.yaml
+kubectl apply -f fog/fog_service.yaml
+kubectl apply -f cloud/cloud_service.yaml
+kubectl apply -f fog_node_2/fog_service.yaml
+kubectl apply -f fog_node_3/fog_service.yaml
+
+
+
+kubectl delete deployments --all
+kubectl delete pods --all
+
+
+
+kubectl delete services --all
+
+
+kubectl delete hpa --all
+
+
+sudo chmod 644 /etc/rancher/k3s/k3s.yaml
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+
+kubectl get nodes
+
+kubectl label node <node-name> role=cloud
+kubectl label node <node-name> role=edge
+kubectl label node <node-name> role=fog
+
+
+curl -sfL https://get.k3s.io | K3S_URL=https://10.1.13.137:6443 K3S_TOKEN=K10fe2c27866cb03cc960afb220fbad0f24bb3a030270a3bf87431f1d29770ea325::server:1d9d4c98a415c179789597ed12136778 sh -
+
+
+
+sudo iptables -t nat -A PREROUTING -p tcp --dport 30000 -j DNAT --to-destination 192.168.49.2:30000
+sudo iptables -t nat -A POSTROUTING -j MASQUERADE
+
+
+
+
+gpt prompt  :
+
+[abhiram@Archoo scratch]$ ls
+cloud  commands  edge  edge.zip  flask-service.yaml  fog  fog.zip
+[abhiram@Archoo scratch]$ tree
+.
+├── cloud
+│   ├── cloud_deployment.yaml
+│   ├── cloud_service.yaml
+│   ├── cloud_storage.py
+│   ├── Dockerfile
+│   └── templates
+│       └── index.html
+├── commands
+├── edge
+│   ├── Dockerfile
+│   ├── edge_camera.py
+│   ├── edge_deployment.yaml
+│   ├── edge_service.yaml
+│   └── templates
+│       └── index.html
+├── edge.zip
+├── flask-service.yaml
+├── fog
+│   ├── Dockerfile
+│   ├── fog_deployment.yaml
+│   ├── fog_processor.py
+│   ├── fog_service.yaml
+│   └── templates
+│       └── fog_node_data.html
+└── fog.zip
+
+7 directories, 19 files
+[abhiram@Archoo scratch]$
+
+
+
+cloud : 
+from flask import Flask, request, jsonify, render_template
+
+app = Flask(__name__)
+
+detections = []
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/store', methods=['POST'])
+def store_detection():
+    detection = request.json.get("detection")
+    detections.append(detection)
+    print("Stored detection:", detection)
+    return jsonify({"status": "success", "detections": detections})
+
+@app.route('/status', methods=['GET'])
+def status():
+    return jsonify({"detections": detections})
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5002)
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloud-service
+spec:
+  type: NodePort  # Change to NodePort for external access
+  selector:
+    app: cloud-storage
+  ports:
+    - protocol: TCP
+      port: 5002
+      targetPort: 5002
+      nodePort: 30002  # Optional: Specify a NodePort (30000-32767) for external access
+
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloud-storage
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloud-storage
+  template:
+    metadata:
+      labels:
+        app: cloud-storage
+    spec:
+      containers:
+      - name: data-storage
+        image: dabblu/cloud_image
+        ports:
+        - containerPort: 5002
+      # nodeSelector:
+      #   role: cloud
+
+
+# Dockerfile for Cloud Node
+FROM python:3.8-slim
+
+# Install Flask
+RUN pip install flask
+
+# Copy the cloud storage script into the container
+COPY cloud_storage.py /app/cloud_storage.py
+COPY templates /app/templates
+
+# Set the working directory
+WORKDIR /app
+
+# Run the cloud storage script
+CMD ["python", "cloud_storage.py"]
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detection Results</title>
+    <script>
+        async function fetchStatus() {
+            const response = await fetch('/status');
+            const data = await response.json();
+            document.getElementById('detections').innerText = JSON.stringify(data.detections, null, 2);
+        }
+
+        setInterval(fetchStatus, 1000); // Refresh every second
+    </script>
+</head>
+<body>
+    <h1>Detection Results</h1>
+    <pre id="detections">Loading...</pre>
+</body>
+</html>
+
+
+
+
+fog :
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Feed</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        img {
+            width: 100%;
+            height: auto;
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <h1>Live Video Feed</h1>
+    <img src="{{ url_for('video_feed') }}" alt="Video Feed">
+</body>
+</html>
+
+
+# Dockerfile for Edge Node
+FROM python:3.8-slim
+
+# Install necessary dependencies
+RUN apt-get update && apt-get install -y \
+    libgl1-mesa-glx \
+    && pip install opencv-python-headless requests flask
+
+# Copy the edge camera script into the container
+COPY edge_camera.py /app/edge_camera.py
+COPY templates /app/templates
+
+# Set the working directory
+WORKDIR /app
+
+# Run the edge camera script
+CMD ["python", "edge_camera.py"]
+
+
+from flask import Flask, Response, render_template
+import cv2
+import requests
+import time
+
+app = Flask(__name__)
+
+# Set the fog node’s IP address and endpoint
+FOG_NODE_URL = "http://10.96.137.169:5001/process"
+
+def capture_and_send():
+    cap = cv2.VideoCapture(0)  # Open the default camera
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break  # Break the loop if frame capture failed
+        
+        # Encode frame to JPEG format
+        _, img_encoded = cv2.imencode('.jpg', frame)
+        
+        # Send the frame to the fog node
+        response = requests.post(FOG_NODE_URL, data=img_encoded.tobytes(), headers={'Content-Type': 'application/octet-stream'})
+        print("Sent frame to fog node, received response:", response.text)
+
+        # Stream the frame back to the client
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + img_encoded.tobytes() + b'\r\n')  # Stream the frame
+
+    cap.release()  # Release the camera resource
+
+@app.route('/video_feed')
+def video_feed():
+    return Response(capture_and_send(),
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/')
+def index():
+    return render_template('index.html')  # This HTML file should be created in the templates folder
+
+if __name__ == "__main__":
+    app.run(host='0.0.0.0', port=5000)
+
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge-camera
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: edge-camera
+  template:
+    metadata:
+      labels:
+        app: edge-camera
+    spec:
+      containers:
+      - name: camera-feed
+        image: dabblu/edge_image
+        ports:
+        - containerPort: 5000
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: video-devices
+          mountPath: /dev/video0  # This can be removed or commented out if not using video device
+      # Remove or comment the resources section if not using a video device
+      # resources:
+      #   limits:
+      #     devices.kubevirt.io/video: "1" 
+      volumes:
+      - name: video-devices
+        hostPath:
+          path: /dev/video0  # Can be removed if not using a video device
+          type: CharDevice
+
+
+# edge_service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: edge-service
+spec:
+  type: NodePort
+  selector:
+    app: edge-camera
+  ports:
+    - protocol: TCP
+      port: 5000
+      targetPort: 5000
+      nodePort: 30000
+
+
+
+
+edge :
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fog Node Data</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f0f0f0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fog Node Data</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>Index</th>
+                <th>Coordinate</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for index, coordinate in coordinates %}
+                <tr>
+                    <td>{{ index }}</td>
+                    <td>{{ coordinate }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
+
+
+# Dockerfile for Fog Node
+FROM python:3.8-slim
+
+# Install necessary dependencies
+RUN apt-get update && apt-get install -y \
+    libgl1-mesa-glx \
+    && pip install opencv-python-headless flask requests psutil
+
+# Copy the fog processor script into the container
+COPY fog_processor.py /app/fog_processor.py
+COPY templates /app/templates
+
+# Set the working directory
+WORKDIR /app
+
+# Run the fog processor script
+CMD ["python", "fog_processor.py"]
+
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fog-processor
+spec:
+  replicas: 3  # Multiple fog nodes
+  selector:
+    matchLabels:
+      app: fog-processor
+  template:
+    metadata:
+      labels:
+        app: fog-processor
+    spec:
+      containers:
+      - name: opencv-processor
+        image: dabblu/fog_image
+        ports:
+        - containerPort: 5001
+      # nodeSelector:
+      #   role: fog
+
+
+import cv2
+import numpy as np
+from flask import Flask, request, jsonify, render_template
+import requests
+import psutil
+
+CLOUD_NODE_URL = "http://10.110.253.80:5002/store"
+
+app = Flask(__name__)
+
+detected_coordinates = []
+
+@app.route('/status', methods=['GET'])
+def status():
+    memory_info = psutil.virtual_memory()
+    return jsonify({
+        "memory_usage": memory_info.percent,
+        "total_memory": memory_info.total,
+        "available_memory": memory_info.available
+    })
+
+@app.route('/process', methods=['POST'])
+def process_frame():
+    img_data = np.frombuffer(request.data, np.uint8)
+    frame = cv2.imdecode(img_data, cv2.IMREAD_COLOR)
+
+    # Red ball detection
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    lower_red = np.array([0, 100, 100])
+    upper_red = np.array([10, 255, 255])
+    mask = cv2.inRange(hsv, lower_red, upper_red)
+
+    # Find contours of the detected red areas
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    detected_coordinates.clear()  # Clear previous detections
+
+    for contour in contours:
+        M = cv2.moments(contour)
+        if M["m00"] != 0:
+            cX = int(M["m10"] / M["m00"])
+            cY = int(M["m01"] / M["m00"])
+            detected_coordinates.append((cX, cY))
+            print(f"Red ball detected at: ({cX}, {cY})")
+
+    # Send the detected coordinates to the cloud node
+    if detected_coordinates:
+        requests.post(CLOUD_NODE_URL, json={"detection": detected_coordinates})
+
+    return "Processed"
+
+@app.route('/data')
+def data():
+    enumerated_coordinates = list(enumerate(detected_coordinates))
+    return render_template('fog_node_data.html', coordinates=enumerated_coordinates)
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5001)
+
+
+# fog_service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: fog-service
+spec:
+  type: NodePort
+  selector:
+    app: fog-processor
+  ports:
+    - protocol: TCP
+      port: 5001
+      targetPort: 5001
+      nodePort: 30001
+
+
+
+
+this is my files and structure,
+
+
+
+
+
+
+
+
+exxtra :
+
+
+
+from flask import Flask, Response, render_template
+import cv2
+import requests
+
+app = Flask(__name__)
+
+FOG_NODE_URL = "http://10.96.137.169:5001/process"
+
+def capture_and_send_video():
+    cap = cv2.VideoCapture(0)
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("Failed to capture frame")
+            break
+
+        # Encode frame to JPEGzz
+        _, img_encoded = cv2.imencode('.jpg', frame)
+
+        # Send frame to fog node for processing
+        try:
+            response = requests.post(FOG_NODE_URL, data=img_encoded.tobytes(), headers={'Content-Type': 'application/octet-stream'})
+            fog_data = response.json()
+            coordinates = fog_data.get("coordinates", [])
+        except Exception as e:
+            print("Error sending frame to fog node:", e)
+            coordinates = []
+
+        yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + img_encoded.tobytes() + b'\r\n')
+
+    cap.release()
+
+def capture_and_send_mask():
+    cap = cv2.VideoCapture(0)
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("Failed to capture frame")
+            break
+
+        # Generate red-detection mask
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        lower_red = (0, 100, 100)
+        upper_red = (10, 255, 255)
+        mask = cv2.inRange(hsv, lower_red, upper_red)
+
+        # Prepare the mask for streaming
+        _, mask_encoded = cv2.imencode('.jpg', mask)
+
+        yield (b'--mask\r\nContent-Type: image/jpeg\r\n\r\n' + mask_encoded.tobytes() + b'\r\n')
+
+    cap.release()
+
+@app.route('/video_feed')
+def video_feed():
+    return Response(capture_and_send_video(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/mask_feed')
+def mask_feed():
+    return Response(capture_and_send_mask(), mimetype='multipart/x-mixed-replace; boundary=mask')
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+if __name__ == "__main__":
+    app.run(host='0.0.0.0', port=5000)
+
+
+
+
+
+import cv2
+import numpy as np
+from flask import Flask, request, jsonify, render_template
+import requests
+import psutil
+import uuid
+from datetime import datetime
+
+CLOUD_NODE_URL = "http://10.110.253.80:5002/store"
+EDGE_NODE_URL = "http://10.96.137.169:5000/receive"  # Update to your Edge node URL
+
+app = Flask(__name__)
+
+tasks = []  # List to store task information
+
+1
+@app.route('/get_status', methods=['GET'])
+def get_status():
+    """
+    Returns the current status of this fog node.
+    """
+    # Gather service rate and latency (for demonstration; adjust as needed)
+    service_rate = 10  # Service rate could be a dynamic calculation
+    latency = 10  # Replace with actual latency measurements if available
+
+    # Gather additional metrics
+    cpu_usage = psutil.cpu_percent(interval=1)  # Current CPU usage in percentage
+    memory_info = psutil.virtual_memory()  # Memory details
+    memory_usage = memory_info.percent  # Memory usage in percentage
+    network_stats = psutil.net_io_counters()  # Network details
+
+    # Data dictionary for status information
+    status_data = {
+        'service_rate': service_rate,
+        'latency': latency,
+        'cpu_usage': cpu_usage,
+        'memory_usage': memory_usage,
+        'sent_bytes': network_stats.bytes_sent,
+        'recv_bytes': network_stats.bytes_recv,
+        'available_memory': memory_info.available,
+        'total_memory': memory_info.total
+    }
+
+    return jsonify(status_data)
+
+
+@app.route('/process', methods=['POST'])
+def process_frame():
+    print("Received a frame for processing.")
+    task_id = str(uuid.uuid4())  # Generate a unique task ID
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Initialize task details
+    task_info = {
+        "task_id": task_id,
+        "status": "Processing",
+        "progress": 0,
+        "timestamp": timestamp,
+        "detection_status": None
+    }
+
+    # Append the task info to tasks list
+    tasks.append(task_info)
+
+    img_data = np.frombuffer(request.data, np.uint8)
+    frame = cv2.imdecode(img_data, cv2.IMREAD_COLOR)
+    if frame is None:
+        print("Failed to decode frame.")
+        return jsonify({"error": "Failed to decode frame."}), 400
+
+    # Red ball detection
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    lower_red = np.array([0, 100, 100])
+    upper_red = np.array([10, 255, 255])
+    mask = cv2.inRange(hsv, lower_red, upper_red)
+
+    # Find contours of the detected red areas
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    coordinates = []  # List to store coordinates of detected red objects
+
+    # Extract coordinates of the detected contours
+    for contour in contours:
+        M = cv2.moments(contour)
+        if M["m00"] > 0:  # To avoid division by zero
+            cX = int(M["m10"] / M["m00"])
+            cY = int(M["m01"] / M["m00"])
+            coordinates.append((cX, cY))
+            print(f"Detected red object at: ({cX}, {cY})")  # Log detected coordinates
+
+            # Draw a circle on the original frame (optional for visualization)
+            cv2.circle(frame, (cX, cY), 5, (255, 0, 0), -1)  # Marking the position
+
+    # Update detection status
+    if coordinates:  # If coordinates are found
+        task_info["detection_status"] = "DETECTED RED"
+    else:
+        task_info["detection_status"] = "NO RED DETECTED"
+
+    # Update progress
+    task_info["progress"] = 100  # Mark progress as complete
+    print(f"Detection status: {task_info['detection_status']}")  # Log detection status
+
+    # Send the detection result to the cloud node
+    requests.post(CLOUD_NODE_URL, json={
+        "detection": {
+            "task_id": task_id,
+            "coordinates": coordinates,
+            "detection_status": task_info["detection_status"],
+            "timestamp": timestamp
+        }
+    })
+
+    return jsonify({"coordinates": coordinates, "detection_status": detection_status})
+
+@app.route('/tasks', methods=['GET'])
+def get_tasks():
+    return jsonify(tasks)
+
+@app.route('/data')
+def data():
+    return render_template('fog_node_data.html', coordinates=[])
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5001)
+
+

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fog Node Tasks</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .progress {
+            width: 100%;
+            background-color: #f3f3f3;
+        }
+        .progress-bar {
+            height: 20px;
+            background-color: #4caf50;
+        }
+    </style>
+</head>
+<body>
+    <h1>Current Tasks</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>Task ID</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Timestamp</th>
+                <th>Detection Status</th>
+            </tr>
+        </thead>
+        <tbody id="taskTableBody">
+            <!-- Task data will be inserted here -->
+        </tbody>
+    </table>
+
+    <script>
+        async function fetchTasks() {
+            const response = await fetch('/tasks');
+            const tasks = await response.json();
+            const tableBody = document.getElementById('taskTableBody');
+            tableBody.innerHTML = '';
+    
+            // Reverse the tasks array to show the latest tasks on top
+            tasks.reverse(); 
+    
+            tasks.forEach(task => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${task.task_id}</td>
+                    <td>${task.status}</td>
+                    <td>
+                        <div class="progress">
+                            <div class="progress-bar" style="width: ${task.progress}%;"></div>
+                        </div>
+                    </td>
+                    <td>${task.timestamp}</td>
+                    <td>${task.detection_status}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+    
+        setInterval(fetchTasks, 2000); // Fetch tasks every 2 seconds
+    </script>
+    
+</body>
+</html>

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detection Results</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .no-detection {
+            color: red;
+        }
+        .detection {
+            color: green;
+        }
+    </style>
+</head>
+<body>
+    <h1>Detection Results</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>Task ID</th>
+                <th>Coordinates</th>
+                <th>Detection Status</th>
+                <th>Timestamp</th>
+            </tr>
+        </thead>
+        <tbody id="detection-table-body">
+            {% for detection in detections | reverse %}
+                <tr>
+                    <td>{{ detection.task_id }}</td>
+                    <td>
+                        {% if detection.coordinates %}
+                            {{ detection.coordinates | tojson }}
+                        {% else %}
+                            <span class="no-detection">No Coordinates Detected</span>
+                        {% endif %}
+                    </td>
+                    <td class="{{ 'detection' if detection.detection_status != 'NO RED DETECTED' else 'no-detection' }}">
+                        {{ detection.detection_status }}
+                    </td>
+                    <td>{{ detection.timestamp }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <script>
+        function fetchDetections() {
+            fetch('/status')  // Endpoint to fetch the detections
+                .then(response => response.json())
+                .then(data => {
+                    const tbody = document.getElementById('detection-table-body');
+                    tbody.innerHTML = '';  // Clear existing rows
+
+                    // Reverse the detections array to display the latest first
+                    data.detections.reverse().forEach(detection => {  // Reverse order
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${detection.task_id}</td>
+                            <td>${detection.coordinates ? JSON.stringify(detection.coordinates) : '<span class="no-detection">No Coordinates Detected</span>'}</td>
+                            <td class="${detection.detection_status !== 'NO RED DETECTED' ? 'detection' : 'no-detection'}">${detection.detection_status}</td>
+                            <td>${detection.timestamp}</td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                })
+                .catch(error => console.error('Error fetching detections:', error));
+        }
+
+        setInterval(fetchDetections, 1000);
+
+    </script>
+    
+</body>
+</html>

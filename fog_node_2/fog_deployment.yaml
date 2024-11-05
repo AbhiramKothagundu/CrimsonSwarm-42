@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fog-processor-2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fog-processor-2
+  template:
+    metadata:
+      labels:
+        app: fog-processor-2
+    spec:
+      containers:
+      - name: opencv-processor-2
+        image: dabblu/fog_image_2
+        ports:
+        - containerPort: 5011
+      # Uncomment and configure if needed
+      # nodeSelector:
+      #   role: fog

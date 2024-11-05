@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloud-storage
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloud-storage
+  template:
+    metadata:
+      labels:
+        app: cloud-storage
+    spec:
+      containers:
+      - name: data-storage
+        image: dabblu/cloud_image
+        ports:
+        - containerPort: 5002
+      # nodeSelector:
+      #   role: cloud
+

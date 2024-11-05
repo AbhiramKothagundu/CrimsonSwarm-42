@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge-camera
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: edge-camera
+  template:
+    metadata:
+      labels:
+        app: edge-camera
+    spec:
+      containers:
+      - name: camera-feed
+        image: dabblu/edge_image
+        ports:
+        - containerPort: 5000
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: video-devices
+          mountPath: /dev/video0  # This can be removed or commented out if not using video device
+      # Remove or comment the resources section if not using a video device
+      # resources:
+      #   limits:
+      #     devices.kubevirt.io/video: "1" 
+      volumes:
+      - name: video-devices
+        hostPath:
+          path: /dev/video0  # Can be removed if not using a video device
+          type: CharDevice

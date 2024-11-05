@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Video Feed with Red Detection</title>
+    <style>
+        #video-container {
+            position: relative;
+            width: 640px; /* Set video width */
+            height: 480px; /* Set video height */
+        }
+        #video-feed {
+            width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Video Feed</h1>
+    <img src="{{ url_for('video_feed') }}" style="border: 1px solid black;">
+</body>
+</html>
+
+
