@@ -19,9 +19,35 @@ FOG_NODE_URLS = [
     # "http://10.104.122.124:5021/process"    # Fog node 3
 ]
 
-
 @app.route('/get_status', methods=['GET'])
 def get_status():
+    """
+    Returns the hardcoded status for Fog Node 1.
+    """
+    # Hardcoded status data for Fog Node 1
+    status_data = {
+        'Fog Device': 'F1',
+        'Fx': '',  # Leave empty or add value if needed
+        'Fy': '',  # Leave empty or add value if needed
+        'SS (m/s)': 299792458,
+        'B/W': 100,
+        'SNR (dB)': 20,
+        'Init Energy (J)': 335700,
+        'Idle (W/H)': 1.25,
+        'Idle (J)': 4500,
+        'Cons (W/H)': 10,
+        'Cons (J)': 36000,
+        'C max': 1.43,
+        'C min': 1.43,
+        'C avg': 1.43,
+        'RAM': 4,
+        'MIPS': 9000
+    }
+
+    return jsonify(status_data)
+
+@app.route('/get_node_status', methods=['GET'])
+def get_node_status():
     """
     Returns the current status of this fog node.
     """

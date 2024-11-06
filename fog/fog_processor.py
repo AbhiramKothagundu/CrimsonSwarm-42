@@ -14,14 +14,41 @@ app = Flask(__name__)
 tasks = []  # List to store task information
 isHead = False
 
+# Dictionary mapping fog node URLs to their names
 fog_nodes = [
-    "http://10.104.122.124:5021/process",
-    "http://10.109.110.20:5011/process"
+    {"name": "Fog Node 3", "url": "http://10.104.122.124:5021/process"},
+    {"name": "Fog Node 2", "url": "http://10.109.110.20:5011/process"}
 ]
-
 
 @app.route('/get_status', methods=['GET'])
 def get_status():
+    """
+    Returns the hardcoded status for Fog Node 1.
+    """
+    # Hardcoded status data for Fog Node 1
+    status_data = {
+        'Fog Device': 'F1',
+        'Fx': '',  # Leave empty or add value if needed
+        'Fy': '',  # Leave empty or add value if needed
+        'SS (m/s)': 299792458,
+        'B/W': 100,
+        'SNR (dB)': 20,
+        'Init Energy (J)': 335700,
+        'Idle (W/H)': 1.25,
+        'Idle (J)': 4500,
+        'Cons (W/H)': 10,
+        'Cons (J)': 36000,
+        'C max': 1.43,
+        'C min': 1.43,
+        'C avg': 1.43,
+        'RAM': 4,
+        'MIPS': 9000
+    }
+
+    return jsonify(status_data)
+
+@app.route('/get_node_status', methods=['GET'])
+def get_node_status():
     """
     Returns the current status of this fog node.
     """
@@ -68,22 +95,23 @@ def head():
     if not img_data:
         return jsonify({"error": "No image data received"}), 400
 
-    fog_node_url = fog_nodes[current_fog_index]
+    fog_node = fog_nodes[current_fog_index]
+    fog_node_name = fog_node["name"]
+    fog_node_url = fog_node["url"]
     
     # Update the counter to alternate between fog nodes
     current_fog_index = (current_fog_index + 1) % len(fog_nodes)
 
     try:
-        # Forward the received image data and task ID to the specified fog node
         response = requests.post(fog_node_url, data=img_data, headers={'Content-Type': 'application/octet-stream'}, params={'task_id': task_id})
         
         if response.status_code == 200:
-            print(f"Task {task_id} sent successfully to {fog_node_url}")
+            print(f"Task {task_id} sent successfully to {fog_node_name}")
             
-            # Store the task and the fog node it was sent to
+            # Store the task and the fog node name it was sent to
             sent_tasks.append({
                 "task_id": task_id,
-                "fog_node": fog_node_url
+                "fog_node": fog_node_name
             })
             
             return jsonify({"message": "Task received and forwarded to Fog Node."})
