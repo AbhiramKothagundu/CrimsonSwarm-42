@@ -12,11 +12,12 @@ EDGE_NODE_URL = "http://10.96.137.169:5000/receive"  # Update to your Edge node 
 app = Flask(__name__)
 
 tasks = []  # List to store task information
+isHead = False
 
-FOG_NODE_URLS = [
-    # "http://10.96.137.169:5001/process",  # Fog node 1
-    "http://10.109.110.20:5011/process",   # Fog node 2
-    # "http://10.104.122.124:5021/process"    # Fog node 3
+# Dictionary mapping fog node URLs to their names
+fog_nodes = [
+    {"name": "Fog Node 1", "url": "http://10.96.137.169:5001/process"},
+    {"name": "Fog Node 2", "url": "http://10.109.110.20:5011/process"}
 ]
 
 @app.route('/get_status', methods=['GET'])
@@ -26,25 +27,27 @@ def get_status():
     """
     # Hardcoded status data for Fog Node 1
     status_data = {
-        'Fog Device': 'F1',
-        'Fx': '',  # Leave empty or add value if needed
-        'Fy': '',  # Leave empty or add value if needed
+        'Fog Device': 3,
+        'Fog Processor': 'fog node 3',
+        'Fx': '20',
+        'Fy': '20',
         'SS (m/s)': 299792458,
         'B/W': 100,
         'SNR (dB)': 20,
         'Init Energy (J)': 335700,
-        'Idle (W/H)': 1.25,
-        'Idle (J)': 4500,
-        'Cons (W/H)': 10,
-        'Cons (J)': 36000,
-        'C max': 1.43,
-        'C min': 1.43,
-        'C avg': 1.43,
-        'RAM': 4,
+        'Idle (W/H)': 5,
+        'Idle (J)': 18000,
+        'Cons (W/H)': 30,
+        'Cons (J)': 108000,
+        'C max': 1.4,
+        'C min': 1.9,
+        'C avg': 1.65,
+        'RAM': 8,
         'MIPS': 9000
     }
 
     return jsonify(status_data)
+
 
 @app.route('/get_node_status', methods=['GET'])
 def get_node_status():
@@ -75,36 +78,51 @@ def get_node_status():
     
     return jsonify(status_data)
 
-
+sent_tasks = []
+current_fog_index = 0
 
 @app.route('/head', methods=['POST'])
 def head():
     """
-    Receives tasks from the edge node and distributes them to available fog nodes.
+    Receives tasks from the edge node and sends them directly to a specified Fog Node.
     """
-    data = request.get_json()
-    # Assume data is a list of tasks
-    tasks_to_process = data.get("tasks", [])
+    global current_fog_index
 
-    if not tasks_to_process:
-        return jsonify({"error": "No tasks received"}), 400
+    global isHead
+    isHead = True
+    task_id = request.args.get("task_id", str(uuid.uuid4()))  # Get task_id from query parameter (if any)
+    img_data = request.data  # Get the raw image byte data (as received)
 
-    for task in tasks_to_process:
-        task_id = task.get("task_id", str(uuid.uuid4()))  # Use provided task_id or generate a new one
-        img_data = task.get("image")  # Assuming the image data is sent in base64 or binary format
+    if not img_data:
+        return jsonify({"error": "No image data received"}), 400
+
+    fog_node = fog_nodes[current_fog_index]
+    fog_node_name = fog_node["name"]
+    fog_node_url = fog_node["url"]
+    
+    # Update the counter to alternate between fog nodes
+    current_fog_index = (current_fog_index + 1) % len(fog_nodes)
+
+    try:
+        response = requests.post(fog_node_url, data=img_data, headers={'Content-Type': 'application/octet-stream'}, params={'task_id': task_id})
         
-        # Distributing the task to fog nodes
-        for fog_node_url in FOG_NODE_URLS:
-            try:
-                response = requests.post(fog_node_url, json={"task_id": task_id, "image": img_data})
-                if response.status_code == 200:
-                    print(f"Task {task_id} distributed successfully to {fog_node_url}")
-                else:
-                    print(f"Failed to distribute task {task_id} to {fog_node_url}: {response.text}")
-            except Exception as e:
-                print(f"Error distributing task {task_id} to {fog_node_url}: {str(e)}")
-
-    return jsonify({"message": "Tasks received and distributed."})
+        if response.status_code == 200:
+            print(f"Task {task_id} sent successfully to {fog_node_name}")
+            
+            # Store the task and the fog node name it was sent to
+            sent_tasks.append({
+                "task_id": task_id,
+                "fog_node": fog_node_name
+            })
+            
+            return jsonify({"message": "Task received and forwarded to Fog Node."})
+        else:
+            print(f"Failed to forward task {task_id} to {fog_node_url}: {response.text}")
+            return jsonify({"error": f"Failed to forward task to Fog Node: {response.text}"}), 500
+    
+    except Exception as e:
+        print(f"Error forwarding task {task_id} to {fog_node_url}: {str(e)}")
+        return jsonify({"error": f"Error forwarding task to Fog Node: {str(e)}"}), 500
 
 
 @app.route('/process', methods=['POST'])
@@ -188,6 +206,8 @@ def get_tasks():
 
 @app.route('/data')
 def data():
+    if isHead:
+        return render_template('head_org.html', sent_tasks=sent_tasks)
     return render_template('fog_node_data.html', coordinates=[])
 
 if __name__ == "__main__":

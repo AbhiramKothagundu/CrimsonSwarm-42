@@ -14,7 +14,6 @@ app = Flask(__name__)
 tasks = []  # List to store task information
 isHead = False
 
-# Dictionary mapping fog node URLs to their names
 fog_nodes = [
     {"name": "Fog Node 3", "url": "http://10.104.122.124:5021/process"},
     {"name": "Fog Node 2", "url": "http://10.109.110.20:5011/process"}
@@ -27,9 +26,10 @@ def get_status():
     """
     # Hardcoded status data for Fog Node 1
     status_data = {
-        'Fog Device': 'F1',
-        'Fx': '',  # Leave empty or add value if needed
-        'Fy': '',  # Leave empty or add value if needed
+        'Fog Device': 1,
+        'Fog Processor': 'fog node 1',
+        'Fx': '10',  # Leave empty or add value if needed
+        'Fy': '20',  # Leave empty or add value if needed
         'SS (m/s)': 299792458,
         'B/W': 100,
         'SNR (dB)': 20,
@@ -198,13 +198,16 @@ def process_frame():
     return jsonify({"coordinates": coordinates, "detection_status": task_info["detection_status"]})
 
 
+
 @app.route('/tasks', methods=['GET'])
 def get_tasks():
     return jsonify(tasks)
 
 @app.route('/data')
 def data():
-    return render_template('head_org.html', sent_tasks=sent_tasks)
+    if isHead:
+        return render_template('head_org.html', sent_tasks=sent_tasks)
+    return render_template('fog_node_data.html', coordinates=[])
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001)
