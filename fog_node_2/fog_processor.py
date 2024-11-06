@@ -83,18 +83,19 @@ def get_node_status():
     
     return jsonify(status_data)
 
-
+    
 class AntColonyOptimizer:
-    def __init__(self, num_fog_nodes, num_tasks, pheromone_influence=1.0, heuristic_influence=1.0, fog_head_index=None):
+    def __init__(self, num_fog_nodes, pheromone_influence=1.0, heuristic_influence=1.0, fog_head_index=None):
         self.num_fog_nodes = num_fog_nodes
-        self.num_tasks = num_tasks
-        self.pheromone_levels = np.ones((num_fog_nodes, num_tasks))  # Initialize pheromone levels
         self.pheromone_influence = pheromone_influence
         self.heuristic_influence = heuristic_influence
         self.fog_head_index = fog_head_index
 
-        # Initialize heuristic_info with random values (can be modified for actual heuristics)
-        self.heuristic_info = np.random.rand(num_fog_nodes, num_tasks)  # Shape (num_fog_nodes, num_tasks)
+        # Initialize pheromone levels with 1 column (for the first task)
+        self.pheromone_levels = np.ones((num_fog_nodes, 1))
+        
+        # Initialize heuristic information, can be set to meaningful values based on node parameters
+        self.heuristic_info = np.random.rand(num_fog_nodes, 1)
 
     def compute_selection_probabilities(self, task):
         pheromone = self.pheromone_levels[:, task]
@@ -104,28 +105,24 @@ class AntColonyOptimizer:
         return probabilities
 
     def resize_pheromone_array(self, task):
-    # Resize pheromone levels array if the task exceeds the current size
+        # Resize pheromone and heuristic arrays to accommodate new tasks if necessary
         if task >= self.pheromone_levels.shape[1]:
             new_size = task + 1  # Ensure the array is large enough for the new task
-            new_pheromone_levels = np.ones((self.num_fog_nodes, new_size))
-            self.pheromone_levels = new_pheromone_levels
-
+            self.pheromone_levels = np.hstack((self.pheromone_levels, np.ones((self.num_fog_nodes, new_size - self.pheromone_levels.shape[1]))))
+            self.heuristic_info = np.hstack((self.heuristic_info, np.random.rand(self.num_fog_nodes, new_size - self.heuristic_info.shape[1])))
 
     def update_pheromones(self, task, selected_node, decay_rate=0.1):
-        # Pheromone evaporation
+        # Apply pheromone decay and update for selected node
         self.pheromone_levels *= (1 - decay_rate)
+        self.pheromone_levels[selected_node, task] += 1
 
-        # Add pheromones based on the selected node and task
-        self.pheromone_levels[selected_node, task] += 1  # Example: increment pheromone for selected path
-
-    def allocate_task(self, task, fog_devices, fog_parameters):
-        self.resize_pheromone_array(task)
+    def allocate_task(self, task, fog_parameters):
+        self.resize_pheromone_array(task)  # Resize to handle new task
         probabilities = self.compute_selection_probabilities(task)
         if self.fog_head_index is not None:
-            probabilities[self.fog_head_index] = 0  # Set the pheromone for the fog head to 0
-            probabilities /= probabilities.sum()  # Normalize probabilities again
+            probabilities[self.fog_head_index] = 0  # Exclude the fog head if specified
+            probabilities /= probabilities.sum()  # Normalize again
 
-        # Select fog node based on probabilities
         selected_node = np.random.choice(self.num_fog_nodes, p=probabilities)
 
         # Retrieve fog device details
@@ -133,44 +130,38 @@ class AntColonyOptimizer:
         fdi = fog_device['Fog Delay Index']
         fpi = fog_device['Fog Performance Index']
 
-        # Update pheromones after allocation
         self.update_pheromones(task, selected_node)
 
-        # Return the selected node and details
         return selected_node, fdi, fpi
 
+
 # Initialize Ant Colony Optimizer
-aco = AntColonyOptimizer(num_fog_nodes=len(fog_nodes), num_tasks=15, pheromone_influence=1.0, heuristic_influence=1.0)
-
-
+aco = AntColonyOptimizer(num_fog_nodes=len(fog_nodes), pheromone_influence=1.0, heuristic_influence=1.0)
 
 # List to store task info (task_id and the target fog node)
 sent_tasks = []
-# current_fog_index = 0
+
 
 @app.route('/head', methods=['POST'])
 def head():
     """
-    Receives tasks from the edge node and sends them directly to a specified Fog Node.
+    Receives tasks from the edge node and dynamically assigns them to a Fog Node using ACO.
     """
-    # global current_fog_index
-
     global isHead
     isHead = True
-    task_id = request.args.get("task_id", str(uuid.uuid4()))  # Get task_id from query parameter (if any)
-    img_data = request.data  # Get the raw image byte data (as received)
+    task_id = request.args.get("task_id", str(uuid.uuid4()))
+    img_data = request.data
 
     if not img_data:
         return jsonify({"error": "No image data received"}), 400
 
-    selected_node, fdi, fpi = aco.allocate_task(task=len(sent_tasks), fog_devices=fog_nodes, fog_parameters=fog_parameters)
+    # Dynamically assign task using ACO
+    task_index = len(sent_tasks)  # Use current number of tasks as the new task index
+    selected_node, fdi, fpi = aco.allocate_task(task=task_index, fog_parameters=fog_parameters)
 
     fog_node = fog_nodes[selected_node]
     fog_node_name = fog_node["name"]
     fog_node_url = fog_node["url"]
-    
-    # Update the counter to alternate between fog nodes
-    # current_fog_index = (current_fog_index + 1) % len(fog_nodes)
 
     try:
         response = requests.post(fog_node_url, data=img_data, headers={'Content-Type': 'application/octet-stream'}, params={'task_id': task_id})
@@ -178,7 +169,6 @@ def head():
         if response.status_code == 200:
             print(f"Task {task_id} sent successfully to {fog_node_name}")
             
-            # Store the task and the fog node name it was sent to
             sent_tasks.append({
                 "task_id": task_id,
                 "fog_node": fog_node_name
