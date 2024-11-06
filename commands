@@ -2,6 +2,8 @@ sudo cat /var/lib/rancher/k3s/server/node-token
 K10fe2c27866cb03cc960afb220fbad0f24bb3a030270a3bf87431f1d29770ea325::server:1d9d4c98a415c179789597ed12136778
 
 
+kubectl get nodes -o wide
+
 docker build -t dabblu/edge_image ./edge
 docker push dabblu/edge_image
 
@@ -17,7 +19,6 @@ docker push dabblu/fog_image_2
 docker build -t dabblu/fog_image_3 ./fog_node_3
 docker push dabblu/fog_image_3
 
-kubectl get nodes -o wide
 
 kubectl apply -f edge/edge_deployment.yaml
 kubectl apply -f fog/fog_deployment.yaml

@@ -90,6 +90,7 @@ def head():
 
 
 
+
 @app.route('/process', methods=['POST'])
 def process_frame():
     print("Received a frame for processing.")
@@ -162,6 +163,9 @@ def process_frame():
     })
 
     return jsonify({"coordinates": coordinates, "detection_status": task_info["detection_status"]})
+
+
+
 
 
 
