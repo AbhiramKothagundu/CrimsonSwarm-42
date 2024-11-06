@@ -14,51 +14,52 @@ app = Flask(__name__)
 tasks = []  # List to store task information
 isHead = False
 
-FOG_NODE_URLS = [
-    # "http://10.96.137.169:5001/process",  # Fog node 1
-    "http://10.109.110.20:5011/process",   # Fog node 2
-    # "http://10.104.122.124:5021/process"    # Fog node 3
+fog_nodes = [
+    "http://10.104.122.124:5021/process",
+    "http://10.109.110.20:5011/process"
 ]
-
 
 
 @app.route('/get_status', methods=['GET'])
 def get_status():
     """
-    Returns the hardcoded status for Fog Node 1.
+    Returns the current status of this fog node.
     """
-    # Hardcoded status data for Fog Node 1
+    # Gather service rate and latency (for demonstration; adjust as needed)
+    service_rate = 10  # Service rate could be a dynamic calculation
+    latency = 10  # Replace with actual latency measurements if available
+
+    # Gather additional metrics
+    cpu_usage = psutil.cpu_percent(interval=1)  # Current CPU usage in percentage
+    memory_info = psutil.virtual_memory()  # Memory details
+    memory_usage = memory_info.percent  # Memory usage in percentage
+    network_stats = psutil.net_io_counters()  # Network details
+    
+    # Data dictionary for status information
     status_data = {
-        'Fog Device': 'F1',
-        'Fx': '',  # Leave empty or add value if needed
-        'Fy': '',  # Leave empty or add value if needed
-        'SS (m/s)': 299792458,
-        'B/W': 100,
-        'SNR (dB)': 20,
-        'Init Energy (J)': 335700,
-        'Idle (W/H)': 1.25,
-        'Idle (J)': 4500,
-        'Cons (W/H)': 10,
-        'Cons (J)': 36000,
-        'C max': 1.43,
-        'C min': 1.43,
-        'C avg': 1.43,
-        'RAM': 4,
-        'MIPS': 9000
+        'service_rate': service_rate,
+        'latency': latency,
+        'cpu_usage': cpu_usage,
+        'memory_usage': memory_usage,
+        'sent_bytes': network_stats.bytes_sent,
+        'recv_bytes': network_stats.bytes_recv,
+        'available_memory': memory_info.available,
+        'total_memory': memory_info.total
     }
-
+    
     return jsonify(status_data)
-
 
 # List to store task info (task_id and the target fog node)
 sent_tasks = []
-
+current_fog_index = 0
 
 @app.route('/head', methods=['POST'])
 def head():
     """
     Receives tasks from the edge node and sends them directly to a specified Fog Node.
     """
+    global current_fog_index
+
     global isHead
     isHead = True
     task_id = request.args.get("task_id", str(uuid.uuid4()))  # Get task_id from query parameter (if any)
@@ -67,9 +68,11 @@ def head():
     if not img_data:
         return jsonify({"error": "No image data received"}), 400
 
-    # Specify the fog node URL (you can modify this based on your logic)
-    fog_node_url = "http://10.109.110.20:5011/process"  # Example Fog Node URL (change if needed)
+    fog_node_url = fog_nodes[current_fog_index]
     
+    # Update the counter to alternate between fog nodes
+    current_fog_index = (current_fog_index + 1) % len(fog_nodes)
+
     try:
         # Forward the received image data and task ID to the specified fog node
         response = requests.post(fog_node_url, data=img_data, headers={'Content-Type': 'application/octet-stream'}, params={'task_id': task_id})
@@ -154,15 +157,6 @@ def process_frame():
     task_info["progress"] = 100  # Mark progress as complete
     print(f"Detection status: {task_info['detection_status']}")  # Log detection status
 
-    requests.post(EDGE_NODE_URL, json={
-        "detection": {
-            "task_id": task_id,
-            "coordinates": coordinates,
-            "detection_status": task_info["detection_status"],
-            "timestamp": timestamp
-        }
-    })
-
     # Send the detection result to the cloud node
     requests.post(CLOUD_NODE_URL, json={
         "detection": {
@@ -174,6 +168,7 @@ def process_frame():
     })
 
     return jsonify({"coordinates": coordinates, "detection_status": task_info["detection_status"]})
+
 
 @app.route('/tasks', methods=['GET'])
 def get_tasks():
