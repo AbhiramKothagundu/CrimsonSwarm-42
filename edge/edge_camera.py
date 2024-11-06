@@ -5,7 +5,7 @@ import uuid
 
 app = Flask(__name__)
 
-FOG_NODE_URL = "http://10.104.122.124:5021/head"
+FOG_NODE_URL = "http://10.109.110.20:5011/head"
 
 def capture_and_send_video():
     cap = cv2.VideoCapture(0)
