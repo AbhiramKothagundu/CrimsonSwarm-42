@@ -58,7 +58,18 @@ By leveraging **Docker** and **K3s (lightweight Kubernetes)**, we create a reali
     - Uses **Docker** for containerization and **Kubernetes (K3s)** for orchestration.
 
 6. **Performance Monitoring**
+
     - Collects and displays processing metrics (CPU, memory usage, etc.) for system analysis.
+
+7. **ACO Improvement over Round Robin**
+    - Average Improvement by ACO over Round Robin:
+        - For 10 fog nodes: 8.27% improvement
+        - For 20 fog nodes: 21.08% improvement
+        - For 30 fog nodes: 34.21% improvement
+        - For 40 fog nodes: 37.63% improvement
+        - For 50 fog nodes: 38.70% improvement
+        - For 60 fog nodes: 39.90% improvement
+    - Overall average improvement: 29.96%
 
 ---
 
@@ -125,6 +136,12 @@ Edge (OpenCV) ----> Fog Node(s) ----> Cloud
     - Uses HSV color space for robust color detection.
     - Contour detection for object localization.
     - Returns coordinates of detected red objects.
+
+### ACO Improvement over Round Robin
+
+Below is the plot showing the improvement percentage of ACO over Round Robin with respect to the number of IoT sensors:
+
+![ACO Improvement over Round Robin](data/aco_improvement_over_rr.png)
 
 ---
 
