@@ -314,9 +314,35 @@ When a red object appears in front of the camera, the logs or output should show
     - **Cloud Node** UI: `http://<CLOUD_IP>:5002`
 
 2. **Testing the System**
+
     - Place a red object in front of the camera.
     - The system should detect the object and display its coordinates.
     - Results should be visible in the cloud node interface (or logs).
+
+3. **Accessing the Services via Minikube IP**
+
+    After running the following commands to get the status of services and pods:
+
+    ```bash
+    kubectl get services -o wide
+    kubectl get pods -o wide
+    ```
+
+    Use the Minikube IP to access the services. Run:
+
+    ```bash
+    minikube ip
+    ```
+
+    This will give you an IP address, for example, `192.168.49.2`.
+
+    Use this IP address to access the services in your browser:
+
+    - **Edge Node** (Video Feed): `http://192.168.49.2:30000/`
+    - **Fog Node 1**: `http://192.168.49.2:30001/data`
+    - **Fog Node 2**: `http://192.168.49.2:30011/data`
+    - **Fog Node 3**: `http://192.168.49.2:30021/data`
+    - **Cloud Node** (Detection Results): `http://192.168.49.2:30002/`
 
 ---
 
@@ -399,9 +425,16 @@ kubectl delete hpa --all
     ```
 
 -   **Port Forwarding** (example iptables rules if needed)
+
     ```bash
     sudo iptables -t nat -A PREROUTING -p tcp --dport 30000 -j DNAT --to-destination 192.168.49.2:30000
     sudo iptables -t nat -A POSTROUTING -j MASQUERADE
+    ```
+
+-   **Check Pod and Service Status**
+    ```bash
+    kubectl get pods -o wide
+    kubectl get services -o wide
     ```
 
 Adjust these commands as needed for your specific environment.

@@ -50,6 +50,8 @@ sudo chmod 644 /etc/rancher/k3s/k3s.yaml
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 
 kubectl get nodes
+kubectl get pods -o wide
+kubectl get services -o wide
 
 kubectl label node <node-name> role=cloud
 kubectl label node <node-name> role=edge
