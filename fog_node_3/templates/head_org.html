@@ -50,19 +50,45 @@
 
         <div class="task-info">
             <h3>List of Tasks Sent to Fog Nodes:</h3>
-            <table>
+            <table id="task-table">
                 <tr>
                     <th>Task ID</th>
                     <th>Fog Node</th>
                 </tr>
-                {% for task in sent_tasks|reverse %}
-                <tr>
-                    <td>{{ task.task_id }}</td>
-                    <td>{{ task.fog_node }}</td>
-                </tr>
-                {% endfor %}
+                <!-- The tasks will be inserted here dynamically -->
             </table>
         </div>
     </div>
+
+    <script>
+        // Function to fetch tasks from the server and update the table
+        function fetchTasks() {
+            fetch('/get_tasks')  // Assuming you have a route /get_tasks to get the task list
+                .then(response => response.json())
+                .then(data => {
+                    const table = document.getElementById('task-table');
+                    // Clear the table before adding new data
+                    table.innerHTML = `
+                        <tr>
+                            <th>Task ID</th>
+                            <th>Fog Node</th>
+                        </tr>
+                    `;
+                    // Add each task row
+                    data.sent_tasks.reverse().forEach(task => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${task.task_id}</td>
+                            <td>${task.fog_node}</td>
+                        `;
+                        table.appendChild(row);
+                    });
+                })
+                .catch(error => console.error('Error fetching tasks:', error));
+        }
+
+        // Fetch tasks every second (1000 ms)
+        setInterval(fetchTasks, 1000);
+    </script>
 </body>
 </html>

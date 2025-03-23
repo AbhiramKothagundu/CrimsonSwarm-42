@@ -31,7 +31,18 @@ def get_status():
     """
     Returns the hardcoded status for Fog Node 1.
     """
-    # Hardcoded status data for Fog Node 1
+    cpu_freq = psutil.cpu_freq()
+    cpu_freq_min = cpu_freq.min
+    cpu_freq_max = cpu_freq.max
+    cpu_freq_current = cpu_freq.current
+
+    cpu_freq_avg = cpu_freq_current
+
+    memory_info = psutil.virtual_memory()
+    total_memory = memory_info.total / (1024 ** 3) 
+    used_memory = memory_info.used / (1024 ** 3) 
+    memory_usage_percent = memory_info.percent 
+
     status_data = {
         'Fog Device': 2,
         'Fog Processor': 'fog node 2',
@@ -45,10 +56,10 @@ def get_status():
         'Idle (J)': 9720,
         'Cons (W/H)': 6.4,
         'Cons (J)': 23040,
-        'C max': 1.5,
-        'C min': 1.5,
-        'C avg': 1.5,
-        'RAM': 4,
+        'C max': cpu_freq_max, 
+        'C min': cpu_freq_min,  
+        'C avg': cpu_freq_avg, 
+        'RAM': total_memory,
         'MIPS': 12000
     }
 
@@ -83,7 +94,7 @@ def get_node_status():
     
     return jsonify(status_data)
 
-    
+
 class AntColonyOptimizer:
     def __init__(self, num_fog_nodes, pheromone_influence=1.0, heuristic_influence=1.0, fog_head_index=None):
         self.num_fog_nodes = num_fog_nodes
@@ -135,7 +146,6 @@ class AntColonyOptimizer:
         return selected_node, fdi, fpi
 
 
-# Initialize Ant Colony Optimizer
 aco = AntColonyOptimizer(num_fog_nodes=len(fog_nodes), pheromone_influence=1.0, heuristic_influence=1.0)
 
 # List to store task info (task_id and the target fog node)
@@ -242,7 +252,8 @@ def process_frame():
         task_info["detection_status"] = "NO RED DETECTED"
 
     # Update progress
-    task_info["progress"] = 100  # Mark progress as complete
+    task_info["progress"] = 100
+    task_info["status"] = "Completed"
     print(f"Detection status: {task_info['detection_status']}")  # Log detection status
 
     # Send the detection result to the cloud node
@@ -257,7 +268,9 @@ def process_frame():
 
     return jsonify({"coordinates": coordinates, "detection_status": task_info["detection_status"]})
 
-
+@app.route('/get_tasks', methods=['GET'])
+def get_sent_tasks():
+    return jsonify({"sent_tasks": sent_tasks})
 
 @app.route('/tasks', methods=['GET'])
 def get_tasks():
