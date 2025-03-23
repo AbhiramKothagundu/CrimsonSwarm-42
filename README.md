@@ -2,28 +2,28 @@
 
 ## Table of Contents
 
-1. [Project Overview](#project-overview)
-2. [Key Features](#key-features)
-3. [Architecture](#architecture)
+1. [Project Overview](#1-project-overview)
+2. [Key Features](#2-key-features)
+3. [Architecture](#3-architecture)
     - [Components](#components)
     - [Data Flow](#data-flow)
     - [Technologies Used](#technologies-used)
     - [Algorithms](#algorithms)
-4. [Repository Structure](#repository-structure)
-5. [Prerequisites](#prerequisites)
-6. [Build and Push Docker Images](#build-and-push-docker-images)
-7. [K3s Deployment](#k3s-deployment)
-    - [Label Your Nodes](#label-your-nodes)
-    - [Apply the Deployments and Services](#apply-the-deployments-and-services)
-8. [Running the System](#running-the-system)
-9. [Monitoring and Verification](#monitoring-and-verification)
-10. [System Verification](#system-verification)
-11. [Troubleshooting](#troubleshooting)
-12. [Future Enhancements](#future-enhancements)
-13. [Cleanup](#cleanup)
-14. [Additional Notes and Commands](#additional-notes-and-commands)
-15. [Conclusion](#conclusion)
-16. [License](#license)
+4. [Repository Structure](#4-repository-structure)
+5. [Prerequisites](#5-prerequisites)
+6. [Build and Push Docker Images](#6-build-and-push-docker-images)
+7. [K3s Deployment](#7-k3s-deployment)
+    - [Label Your Nodes](#71-label-your-nodes)
+    - [Apply the Deployments and Services](#72-apply-the-deployments-and-services)
+8. [Running the System](#8-running-the-system)
+9. [Monitoring and Verification](#9-monitoring-and-verification)
+10. [System Verification](#10-system-verification)
+11. [Troubleshooting](#11-troubleshooting)
+12. [Future Enhancements](#12-future-enhancements)
+13. [Cleanup](#13-cleanup)
+14. [Additional Notes and Commands](#14-additional-notes-and-commands)
+15. [Conclusion](#15-conclusion)
+16. [License](#16-license)
 
 ---
 
@@ -412,4 +412,4 @@ This project demonstrates a complete **Cloud-Fog-Edge** computing architecture f
 
 ## 16. License
 
-_(Include your preferred license text here, e.g., MIT, Apache 2.0, etc.)_
+This project is licensed under the terms of the [MIT License](https://github.com/AbhiramKothagundu/CrimsonSwarm-42/blob/main/LICENSE).
