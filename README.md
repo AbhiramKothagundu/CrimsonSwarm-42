@@ -179,6 +179,10 @@ Each folder contains:
 -   **kubectl** configured to communicate with your K3s cluster.
 -   **Python 3.x** with required libraries (OpenCV, Flask, NumPy, Pandas, Requests, psutil).
 -   **Camera** (webcam) or video input for the Edge device.
+-   **Minikube** (optional, for local Kubernetes cluster):
+    ```bash
+    minikube start --driver=docker
+    ```
 
 ---
 
